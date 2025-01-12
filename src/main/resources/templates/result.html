@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="https://www.thymeleaf.org">
+<head>
+    <title>Result</title>
+    <meta charset="UTF-8" />
+</head>
+<body>
+<h1>Result</h1>
+<p th:text="'Username: ' + ${user.username}" />
+<p th:text="'Password: ' + ${user.password}" />
+<a href="/login">Re-enter details</a>
+<p th:if="${adminAccess}">Admin Access Granted</p>
+</body>
+</html>
