@@ -1,5 +1,6 @@
 package me.thegreatk.gradebook;
 
+import me.thegreatk.gradebook.profile.Profile;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,7 +17,7 @@ public class LoginController {
 
     @PostMapping("/login")
     public String loginSubmit(@ModelAttribute("login") User user, Model model) {
-        model.addAttribute("user", user);
+        model.addAttribute("user", new Profile(user.getUsername(), user.getPassword()));
         model.addAttribute("adminAccess", (user.getUsername().equals("admin") && user.getPassword().equals("1234")));
         return "result";
     }
