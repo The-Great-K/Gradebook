@@ -3,7 +3,7 @@ package me.thegreatk.gradebook.profile.grades;
 import java.util.*;
 
 public class Grade {
-    private static final float NOT_ASSESSED = 0.1f;
+    public static final float NOT_ASSESSED = -0.1f;
     private final float earnedPoints, totalPoints;
 
     private final Map<Float, String> gradeMarkLegend; // Max grade | Associated letter
@@ -21,6 +21,10 @@ public class Grade {
     }
 
     public float getScore() {
+        return totalPoints >= 0.0f ? Math.round((earnedPoints / totalPoints) * 100f) / 100f : NOT_ASSESSED;
+    }
+
+    public float getRawScore() {
         return totalPoints >= 0.0f ? earnedPoints / totalPoints : NOT_ASSESSED;
     }
 

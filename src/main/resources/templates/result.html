@@ -6,7 +6,8 @@
 </head>
 <body>
 <h1>Result</h1>
-<p th:text="'Grade: ' + ${user.getGrade()}" />
+<p th:text="'Grade: ' + ${user.getGrade().getLetter()}" />
+<p th:text="'Score: ' + ${user.getGrade().getScore()}" />
 <a href="/login">Re-enter details</a>
 <p th:if="${adminAccess}">Admin Access Granted</p>
 </body>
