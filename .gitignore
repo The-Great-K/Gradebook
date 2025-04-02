@@ -36,3 +36,7 @@ build/
 .mvn
 mvnw
 mvnw.cmd
+
+### Testing ###
+src/main/test
+src/main/java/me/thegreatk/test

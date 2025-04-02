@@ -1,8 +1,6 @@
 package me.thegreatk.gradebook.profile;
 
-import me.thegreatk.gradebook.profile.grades.ClassGrade;
-import me.thegreatk.gradebook.profile.grades.Grade;
-import me.thegreatk.gradebook.profile.grades.GradeHolder;
+import me.thegreatk.gradebook.profile.grades.*;
 import org.openqa.selenium.*;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.chrome.ChromeDriver;
@@ -14,32 +12,21 @@ import java.time.Duration;
 import java.util.*;
 import java.util.regex.Pattern;
 
-public class Profile implements GradeHolder { // debugging this is going to be a nightmare :P
-    private Grade overallGrade = null;
+public class Profile { // debugging this is going to be a nightmare :P
     private final List<ClassGrade> grades = new ArrayList<>();
 
     private WebDriver driver = null;
     private Wait<WebDriver> wait = null;
+
+    public Profile(ProfileRequestPacket details) {
+        this(details.getUsername(), details.getPassword());
+    }
 
     public Profile(String username, String password) {
         openDriver(username, password, false);
         initGrades();
         closeDriver();
     }
-
-    public Grade getGrade() {
-        if (overallGrade != null) return overallGrade;
-
-        OptionalDouble gradeCheck = getGrades().stream().mapToDouble(c -> c.getGrade().getRawScore()).filter(s -> s != Grade.NOT_ASSESSED).average();
-        if (gradeCheck.isPresent()) {
-            overallGrade = new Grade((float) gradeCheck.getAsDouble() * 10000f, 100f);
-        } else {
-            overallGrade = new Grade(Grade.NOT_ASSESSED, 100f);
-        }
-
-        return overallGrade;
-    }
-
     public List<ClassGrade> getGrades() {
         return grades;
     }
@@ -54,6 +41,104 @@ public class Profile implements GradeHolder { // debugging this is going to be a
         }
 
         return gradeMarkLegend;
+    }
+
+    private List<? extends AssignmentCategory> extractAssignmentCategories(List<WebElement> assignmentList, Map<Float, String> gradeMarkLegend, boolean weighted) {
+        // this loop removes all empty assignment categories
+        ListIterator<WebElement> iter = assignmentList.listIterator();
+        while (iter.hasNext()) {
+            WebElement el = iter.next();
+            if (el.getText().startsWith("There are no") && el.getText().endsWith("assignments")) {
+                iter.remove();
+                iter.previous();
+                iter.remove();
+            }
+        }
+
+        if (assignmentList.isEmpty()) return List.of();
+
+        if (weighted) {
+            List<WeightedAssignmentCategory> assignmentCategories = new ArrayList<>();
+
+            WeightedAssignmentCategory currentCategory = null;
+            for (WebElement assignment : assignmentList) {
+                if (assignment.getDomAttribute("class").contains("sf_Section")) { // if new category
+                    if (currentCategory != null) assignmentCategories.add(currentCategory); // adds old category into list
+
+                    String weightText = assignment.findElement(By.className("fWn")).getText();
+                    String name = assignment.findElements(By.tagName("td")).get(1).getText()
+                            .substring(0, assignment.findElements(By.tagName("td")).get(1).getText().length() - weightText.length());
+
+                    float weight = Float.parseFloat(Arrays.asList(weightText.split(", ")).getLast().replaceAll("[^\\d.]", ""));
+
+                    if (assignment.findElements(By.className("nWp")).get(1).getText().isBlank()) { // if category has assignments, but no grade
+                        currentCategory = new WeightedAssignmentCategory(name, Grade.NOT_ASSESSED, weight);
+                        continue;
+                    }
+
+                    float earnedPoints = Float.parseFloat(assignment.findElements(By.className("nWp")).get(1).getText().split(" out of ")[0]);
+                    float totalPoints = Float.parseFloat(assignment.findElements(By.className("nWp")).get(1).getText().split(" out of ")[1]);
+
+                    currentCategory = new WeightedAssignmentCategory(name, new Grade(earnedPoints, totalPoints, gradeMarkLegend), weight);
+                    continue;
+                }
+                if (currentCategory == null) throw new IllegalArgumentException();
+
+                String name = assignment.findElement(By.className("nWp")).getText();
+                String earnedPointsText = assignment.findElements(By.className("aRt")).getLast().getText().split(" out of ")[0];
+
+                if (earnedPointsText.equals("*")) { // if assignment doesn't have a grade
+                    currentCategory.addAssignment(new Assignment(name, Grade.NOT_ASSESSED));
+                    continue;
+                }
+
+                float earnedPoints = Float.parseFloat(earnedPointsText);
+                float totalPoints = Float.parseFloat(assignment.findElements(By.className("aRt")).get(1).getText().split(" out of ")[1]);
+
+                currentCategory.addAssignment(new Assignment(name, new Grade(earnedPoints, totalPoints)));
+            }
+
+            assignmentCategories.add(currentCategory); // adds final category into list
+
+            return assignmentCategories;
+        } else { // same logic without weighted
+            List<AssignmentCategory> assignmentCategories = new ArrayList<>();
+
+            AssignmentCategory currentCategory = null;
+            for (WebElement assignment : assignmentList) {
+                if (assignment.getDomAttribute("class").contains("sf_Section")) {
+                    if (currentCategory != null) assignmentCategories.add(currentCategory);
+                    String name = assignment.findElements(By.className("nWp")).getFirst().getText();
+
+                    if (assignment.findElements(By.className("nWp")).get(1).getText().isBlank()) {
+                        currentCategory = new AssignmentCategory(name, Grade.NOT_ASSESSED);
+                        continue;
+                    }
+
+                    float earnedPoints = Float.parseFloat(assignment.findElements(By.className("nWp")).get(1).getText().split(" out of ")[0]);
+                    float totalPoints = Float.parseFloat(assignment.findElements(By.className("nWp")).get(1).getText().split(" out of ")[1]);
+
+                    currentCategory = new AssignmentCategory(name, new Grade(earnedPoints, totalPoints, gradeMarkLegend));
+                    continue;
+                }
+                if (currentCategory == null) throw new IllegalArgumentException();
+
+                String name = assignment.findElement(By.className("nWp")).getText();
+                String earnedPointsText = assignment.findElements(By.className("aRt")).getLast().getText().split(" out of ")[0];
+                if (earnedPointsText.equals("*")) {
+                    currentCategory.addAssignment(new Assignment(name, Grade.NOT_ASSESSED));
+                    continue;
+                }
+                float earnedPoints = Float.parseFloat(earnedPointsText);
+                float totalPoints = Float.parseFloat(assignment.findElements(By.className("aRt")).getLast().getText().split(" out of ")[1]);
+
+                currentCategory.addAssignment(new Assignment(name, new Grade(earnedPoints, totalPoints)));
+            }
+
+            assignmentCategories.add(currentCategory);
+
+            return assignmentCategories;
+        }
     }
 
     private void openDriver(String username, String password, boolean headless) {
@@ -110,18 +195,32 @@ public class Profile implements GradeHolder { // debugging this is going to be a
                 .filter(s -> !s.isBlank())
                 .toList();
 
-        List<WebElement> classGrades = new ArrayList<>();
+        List<Optional<WebElement>> classGrades = new ArrayList<>();
 
         boolean b = false;
         for (WebElement grade : driver.findElement(By.className("scrollRows")).findElements(By.className("gDt3R"))) {
-            if (b) classGrades.add(grade.findElements(By.className("sf_highlightYellow")).get(1).findElement(By.tagName("a")));
+            if (b) {
+                try {
+                    classGrades.add(Optional.of(grade.findElements(By.className("sf_highlightYellow")).get(1).findElement(By.tagName("a"))));
+                } catch (NoSuchElementException _) {
+                    classGrades.add(Optional.empty());
+                }
+            }
             b = !b;
         }
 
         // loops through all classes
+        int skipped = 0;
         for (int i = 0; i < classNames.size(); i++) {
+            if (classGrades.get(i).isEmpty()) {
+                grades.add(new ClassGrade(classNames.get(i), Grade.NOT_ASSESSED, List.of()));
+                skipped++;
+                continue;
+            }
+            WebElement classLink = classGrades.get(i).get();
+
             // opens class window to extract information
-            classGrades.get(i).click();
+            classLink.click();
 
             // waits until window loads in
             wait.until(_ -> {
@@ -135,10 +234,10 @@ public class Profile implements GradeHolder { // debugging this is going to be a
             });
 
             // gets the grade mark legend
-            int finalIndex = i; // required for use in lambda
+            int finalIndex = i - skipped; // effectively final variable required for use in lambda
             wait.until(_ -> driver.findElements(By.className("sf_DialogWrap")).size() > 4 + finalIndex);
             Map<Float, String> gradeMarkLegend = extractGradeMarkLegend(
-                    driver.findElements(By.className("sf_DialogWrap")).get(4 + i)
+                    driver.findElements(By.className("sf_DialogWrap")).get(4 + i - skipped)
                             .findElement(By.className("sf_gridTableWrap"))
                             .findElement(By.tagName("tbody")).findElements(By.tagName("tr"))
             );
@@ -146,17 +245,24 @@ public class Profile implements GradeHolder { // debugging this is going to be a
 
             // gets the class grade information, and pushes into a list
             String tmp = driver.findElement(By.id("gradeInfoDialog")).findElements(By.className("aRt")).get(1).getText();
-            if (Pattern.matches("[\\d|.]+ out of [\\d|.]+", tmp)) { // non weighted assignment categories
+            if (Pattern.matches("[\\d.,]+ out of [\\d.,]+", tmp)) { // non weighted assignment categories
                 String[] score = tmp.split(" out of ");
                 float earnedPoints = Float.parseFloat(score[0]);
                 float totalPoints = Float.parseFloat(score[1]);
 
-                grades.add(new ClassGrade(classNames.get(i), new Grade(earnedPoints, totalPoints, gradeMarkLegend), classGrades.get(i), false));
+                List<? extends AssignmentCategory> categories = extractAssignmentCategories(
+                        driver.findElement(By.id("gradeInfoDialog")).findElements(By.className("sf_gridTableWrap")).get(2)
+                                .findElement(By.tagName("tbody")).findElements(By.tagName("tr")), gradeMarkLegend, false);
+
+                grades.add(new ClassGrade(classNames.get(i), new Grade(earnedPoints, totalPoints, gradeMarkLegend), categories));
             } else { // weighted assignment categories
                 float earnedPoints = Float.parseFloat(driver.findElements(By.className("nPtb")).get(1).getText());
-                float totalPoints = 100.0f;
 
-                grades.add(new ClassGrade(classNames.get(i), new Grade(earnedPoints, totalPoints, gradeMarkLegend), classGrades.get(i), true));
+                List<? extends AssignmentCategory> categories = extractAssignmentCategories(
+                        driver.findElement(By.id("gradeInfoDialog")).findElements(By.className("sf_gridTableWrap")).get(2)
+                                .findElement(By.tagName("tbody")).findElements(By.tagName("tr")), gradeMarkLegend, true);
+
+                grades.add(new ClassGrade(classNames.get(i), new Grade(earnedPoints, gradeMarkLegend), categories));
             }
 
             driver.findElement(By.id("gradeInfoDialog")).findElement(By.className("sf_DialogClose")).click();

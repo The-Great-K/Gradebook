@@ -6,9 +6,15 @@
 </head>
 <body>
 <h1>Result</h1>
-<p th:text="'Grade: ' + ${user.getGrade().getLetter()}" />
-<p th:text="'Score: ' + ${user.getGrade().getScore()}" />
+<ul th:each="class: ${profile.getGrades()}">
+    <li><span th:text="${class.name()}"/>: <span th:text="${class.grade().getLetter()}"/> | <span th:text="${class.grade().getScore()}"/></li>
+    <ul th:each="category: ${class.categories}">
+        <li><span th:text="${category.name}"/>: <span th:text="${category.grade().getLetter()}"/> | <span th:text="${category.grade().getScore()}"/></li>
+        <ul th:each="assignment: ${category.assignments}">
+            <li><span th:text="${assignment.name}"/>: <span th:text="${assignment.grade().getLetter()}"/> | <span th:text="${assignment.grade().getScore()}"/><li>
+        </ul>
+    </ul>
+</ul>
 <a href="/login">Re-enter details</a>
-<p th:if="${adminAccess}">Admin Access Granted</p>
 </body>
 </html>

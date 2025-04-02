@@ -1,8 +1,7 @@
-package me.thegreatk.gradebook;
+package me.thegreatk.gradebook.profile;
 
-public class User {
-    private String username;
-    private String password;
+public class ProfileRequestPacket {
+    private String username, password;
 
     public String getUsername() {
         return username;
